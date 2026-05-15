@@ -1,15 +1,26 @@
+import { useState, useCallback } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../constants/theme';
 import StatCard from '../../components/ui/StatCard';
+import { getMatches } from '../../services/storage';
+import { computeStats } from '../../services/stats';
 
 export default function Dashboard() {
-    const stats = {
-        matchesPlayed: 0,
-        winRate: 0,
-        currentStreak: 0,
-        bestCategory: '—',
-    };
+    const [stats, setStats] = useState({
+        totalMatches: 0, avgScore: 0, topCategory: '—', lastWinner: '—',
+    });
+
+    // re-load every time the tab becomes visible
+    useFocusEffect(useCallback(() => {
+        (async () => {
+            const matches = await getMatches();
+            setStats(computeStats(matches));
+        })();
+    }, []));
+
+    const empty = stats.totalMatches === 0;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -19,15 +30,17 @@ export default function Dashboard() {
                 <Text style={styles.subtitle}>Ready to test your pop culture brain?</Text>
 
                 <View style={styles.statsGrid}>
-                    <StatCard label="Matches"   value={stats.matchesPlayed}     color={colors.pink} />
-                    <StatCard label="Win Rate"  value={`${stats.winRate}%`}     color={colors.blue} />
-                    <StatCard label="Streak"    value={stats.currentStreak}     color={colors.pink} />
-                    <StatCard label="Best Topic" value={stats.bestCategory}     color={colors.blue} />
+                    <StatCard label="Matches"      value={stats.totalMatches} color={colors.pink} />
+                    <StatCard label="Avg Score"    value={`${stats.avgScore}/10`} color={colors.blue} />
+                    <StatCard label="Top Category" value={stats.topCategory}  color={colors.pink} />
+                    <StatCard label="Last Winner"  value={stats.lastWinner}   color={colors.blue} />
                 </View>
 
                 <View style={styles.cta}>
                     <Text style={styles.ctaText}>
-                        No matches yet — tap Play to start your first duel!
+                        {empty
+                            ? 'No matches yet — tap Play to start your first duel!'
+                            : `${stats.totalMatches} ${stats.totalMatches === 1 ? 'match' : 'matches'} played on this phone 🎉`}
                     </Text>
                 </View>
             </ScrollView>

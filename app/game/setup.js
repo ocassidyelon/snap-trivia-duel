@@ -4,22 +4,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../constants/theme';
 import { CATEGORIES } from '../../constants/categories';
+import useImagePicker from '../../hooks/useImagePicker';
+import Avatar from '../../components/ui/Avatar';
 
 export default function Setup() {
     const [player1, setPlayer1] = useState('');
     const [player2, setPlayer2] = useState('');
+    const [avatar1, setAvatar1] = useState(null);
+    const [avatar2, setAvatar2] = useState(null);
     const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
+    const { takePhoto } = useImagePicker();
 
     const canStart = player1.trim().length > 0 && player2.trim().length > 0;
 
+    const snapFor = async (player) => {
+        const uri = await takePhoto();
+        if (!uri) return;
+        if (player === 1) setAvatar1(uri); else setAvatar2(uri);
+    };
+
     const start = () => {
         if (!canStart) return;
+        const cat = CATEGORIES.find(c => c.id === categoryId);
         router.push({
             pathname: '/game/play',
             params: {
                 p1: player1.trim(),
                 p2: player2.trim(),
+                a1: avatar1 || '',
+                a2: avatar2 || '',
                 categoryId: String(categoryId),
+                categoryLabel: cat.label,
             },
         });
     };
@@ -34,24 +49,22 @@ export default function Setup() {
                 <Text style={styles.title}>Hot Seat Setup</Text>
                 <Text style={styles.subtitle}>Two players, one phone</Text>
 
-                <Text style={styles.label}>Player 1</Text>
-                <TextInput
-                    style={[styles.input, { borderColor: colors.pink }]}
-                    placeholder="Name…"
-                    placeholderTextColor={colors.textMuted}
-                    value={player1}
-                    onChangeText={setPlayer1}
-                    maxLength={16}
+                <PlayerRow
+                    label="Player 1"
+                    color={colors.pink}
+                    name={player1}
+                    onChange={setPlayer1}
+                    avatar={avatar1}
+                    onSnap={() => snapFor(1)}
                 />
 
-                <Text style={styles.label}>Player 2</Text>
-                <TextInput
-                    style={[styles.input, { borderColor: colors.blue }]}
-                    placeholder="Name…"
-                    placeholderTextColor={colors.textMuted}
-                    value={player2}
-                    onChangeText={setPlayer2}
-                    maxLength={16}
+                <PlayerRow
+                    label="Player 2"
+                    color={colors.blue}
+                    name={player2}
+                    onChange={setPlayer2}
+                    avatar={avatar2}
+                    onSnap={() => snapFor(2)}
                 />
 
                 <Text style={[styles.label, { marginTop: spacing.lg }]}>Category</Text>
@@ -92,6 +105,27 @@ export default function Setup() {
     );
 }
 
+function PlayerRow({ label, color, name, onChange, avatar, onSnap }) {
+    return (
+        <View style={styles.playerRow}>
+            <Pressable onPress={onSnap}>
+                <Avatar uri={avatar} size={56} color={color} fallback="📸" />
+            </Pressable>
+            <View style={styles.playerInputs}>
+                <Text style={styles.label}>{label}</Text>
+                <TextInput
+                    style={[styles.input, { borderColor: color }]}
+                    placeholder="Name…"
+                    placeholderTextColor={colors.textMuted}
+                    value={name}
+                    onChangeText={onChange}
+                    maxLength={16}
+                />
+            </View>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     scroll:    { padding: spacing.lg, paddingBottom: spacing.xxl },
@@ -99,7 +133,7 @@ const styles = StyleSheet.create({
     backText:  { ...typography.body, color: colors.pink, fontWeight: '600' },
     title:     { ...typography.title, marginBottom: spacing.xs },
     subtitle:  { ...typography.body, color: colors.textMuted, marginBottom: spacing.xl },
-    label:     { ...typography.caption, fontWeight: '700', marginBottom: spacing.xs, marginTop: spacing.md },
+    label:     { ...typography.caption, fontWeight: '700', marginBottom: spacing.xs },
     input: {
         backgroundColor: colors.card,
         borderRadius: radii.md,
@@ -108,6 +142,13 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: colors.text,
     },
+    playerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        marginBottom: spacing.md,
+    },
+    playerInputs: { flex: 1 },
     catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     catChip: {
         flexDirection: 'row',

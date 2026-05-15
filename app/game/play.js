@@ -1,19 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { colors, spacing, typography } from '../../constants/theme';
+import { colors, spacing, typography, radii } from '../../constants/theme';
 import { fetchQuestions } from '../../services/triviaApi';
 import QuestionCard from '../../components/game/QuestionCard';
 import AnswerButton from '../../components/game/AnswerButton';
 import Timer from '../../components/game/Timer';
 import ScoreHeader from '../../components/game/ScoreHeader';
+import useImagePicker from '../../hooks/useImagePicker';
 
 const QUESTION_COUNT = 5;
 const TIMER_SECONDS = 30;
 
 export default function PlayGame() {
-    const { p1, p2, categoryId } = useLocalSearchParams();
+    const { p1, p2, a1, a2, categoryId, categoryLabel } = useLocalSearchParams();
+    const { takePhoto } = useImagePicker();
 
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -22,9 +24,10 @@ export default function PlayGame() {
     const [questionIndex, setQuestionIndex] = useState(0);
     const [activePlayer, setActivePlayer] = useState(1);
     const [scores, setScores] = useState({ 1: 0, 2: 0 });
+    const [avatars, setAvatars] = useState({ 1: a1 || null, 2: a2 || null });
     const [selectedAnswer, setSelectedAnswer] = useState(null);
 
-    const advancing = useRef(false);
+    const advanceTimer = useRef(null);
 
     useEffect(() => {
         (async () => {
@@ -41,50 +44,61 @@ export default function PlayGame() {
                 setLoading(false);
             }
         })();
+
+        return () => { if (advanceTimer.current) clearTimeout(advanceTimer.current); };
     }, [categoryId]);
 
     const currentQuestion = questions[questionIndex];
 
-    const advance = (gotItRight) => {
-        if (advancing.current) return;
-        advancing.current = true;
+    const goToNextQuestion = (gotItRight) => {
+        const newScores = {
+            ...scores,
+            [activePlayer]: scores[activePlayer] + (gotItRight ? 1 : 0),
+        };
 
-        if (gotItRight) {
-            setScores(prev => ({ ...prev, [activePlayer]: prev[activePlayer] + 1 }));
+        const isLast = questionIndex >= QUESTION_COUNT - 1;
+        if (isLast) {
+            router.replace({
+                pathname: '/game/results',
+                params: {
+                    p1, p2,
+                    s1: String(newScores[1]),
+                    s2: String(newScores[2]),
+                    categoryLabel,
+                },
+            });
+        } else {
+            setScores(newScores);
+            setQuestionIndex(i => i + 1);
+            setActivePlayer(p => (p === 1 ? 2 : 1));
+            setSelectedAnswer(null);
         }
+    };
 
-        setTimeout(() => {
-            const isLast = questionIndex >= QUESTION_COUNT - 1;
-            if (isLast) {
-                router.replace({
-                    pathname: '/game/results',
-                    params: {
-                        p1, p2,
-                        // include the just-earned point if applicable
-                        s1: String(scores[1] + (gotItRight && activePlayer === 1 ? 1 : 0)),
-                        s2: String(scores[2] + (gotItRight && activePlayer === 2 ? 1 : 0)),
-                    },
-                });
-            } else {
-                setQuestionIndex(i => i + 1);
-                setActivePlayer(p => (p === 1 ? 2 : 1));
-                setSelectedAnswer(null);
-                advancing.current = false;
-            }
-        }, 1500);
+    const scheduleAdvance = (gotItRight, delayMs = 2500) => {
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        advanceTimer.current = setTimeout(() => goToNextQuestion(gotItRight), delayMs);
     };
 
     const handleAnswer = (answer) => {
         if (selectedAnswer !== null) return;
         setSelectedAnswer(answer);
         const correct = answer === currentQuestion.correctAnswer;
-        advance(correct);
+        scheduleAdvance(correct);
     };
 
     const handleTimeout = () => {
         if (selectedAnswer !== null) return;
         setSelectedAnswer('__timeout__');
-        advance(false);
+        scheduleAdvance(false);
+    };
+
+    const handleSnapReaction = async () => {
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        const uri = await takePhoto();
+        if (uri) setAvatars(prev => ({ ...prev, [activePlayer]: uri }));
+        const correct = selectedAnswer === currentQuestion?.correctAnswer;
+        scheduleAdvance(correct, 500);
     };
 
     if (loading) {
@@ -100,9 +114,9 @@ export default function PlayGame() {
         return (
             <SafeAreaView style={[styles.container, styles.center]}>
                 <Text style={styles.errorText}>😕 {error}</Text>
-                <Text style={[styles.loadingText, { marginTop: 12 }]}>
-                    Check your internet and tap Back to retry.
-                </Text>
+                <Pressable onPress={() => router.back()} style={[styles.btn, { marginTop: 20 }]}>
+                    <Text style={styles.btnText}>Back</Text>
+                </Pressable>
             </SafeAreaView>
         );
     }
@@ -113,8 +127,8 @@ export default function PlayGame() {
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
                 <ScoreHeader
-                    player1={{ name: p1, score: scores[1] }}
-                    player2={{ name: p2, score: scores[2] }}
+                    player1={{ name: p1, score: scores[1], avatar: avatars[1] }}
+                    player2={{ name: p2, score: scores[2], avatar: avatars[2] }}
                     activePlayer={activePlayer}
                 />
 
@@ -147,6 +161,12 @@ export default function PlayGame() {
                         />
                     );
                 })}
+
+                {answered && (
+                    <Pressable onPress={handleSnapReaction} style={styles.snapBtn}>
+                        <Text style={styles.snapBtnText}>📸 Snap your reaction</Text>
+                    </Pressable>
+                )}
             </View>
         </SafeAreaView>
     );
@@ -158,4 +178,16 @@ const styles = StyleSheet.create({
     center:    { alignItems: 'center', justifyContent: 'center' },
     loadingText: { ...typography.body, color: colors.textMuted, marginTop: spacing.md },
     errorText:   { ...typography.heading, color: colors.danger, textAlign: 'center' },
+    snapBtn: {
+        marginTop: spacing.md,
+        backgroundColor: colors.blueLight,
+        borderRadius: radii.md,
+        padding: spacing.md,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: colors.blue,
+    },
+    snapBtnText: { fontSize: 15, fontWeight: '700', color: colors.blueDark },
+    btn:     { backgroundColor: colors.pink, padding: spacing.md, borderRadius: radii.md },
+    btnText: { color: '#FFF', fontWeight: '700' },
 });

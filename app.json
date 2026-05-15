@@ -9,8 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
-    },
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Snap Trivia Duel uses the camera so you and your opponent can snap reaction photos during matches.",
+        "NSPhotoLibraryUsageDescription": "Snap Trivia Duel needs photo library access if you'd rather pick an existing photo."
+        }
+      },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
