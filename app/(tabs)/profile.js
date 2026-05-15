@@ -1,16 +1,50 @@
-import { useState, useCallback } from 'react';
-import { ScrollView, View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { useState, useCallback, useEffect } from 'react';
+import { ScrollView, View, Text, Pressable, Switch, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, typography, radii } from '../../constants/theme';
 import { getMatches, clearMatches } from '../../services/storage';
+import {
+    requestNotificationPermission,
+    scheduleDailyReminder,
+    cancelDailyReminder,
+} from '../../services/notifications';
+
+const REMINDER_KEY = 'snap-trivia:daily-reminder';
 
 export default function Profile() {
     const [matches, setMatches] = useState([]);
+    const [reminderOn, setReminderOn] = useState(false);
 
     useFocusEffect(useCallback(() => {
         (async () => setMatches(await getMatches()))();
     }, []));
+
+    useEffect(() => {
+        (async () => {
+            const saved = await AsyncStorage.getItem(REMINDER_KEY);
+            setReminderOn(saved === 'true');
+        })();
+    }, []);
+
+    const toggleReminder = async (next) => {
+        if (next) {
+            const granted = await requestNotificationPermission();
+            if (!granted) {
+                Alert.alert(
+                    'Permission needed',
+                    'Enable notifications in iOS Settings to get daily reminders.'
+                );
+                return;
+            }
+            await scheduleDailyReminder();
+        } else {
+            await cancelDailyReminder();
+        }
+        setReminderOn(next);
+        await AsyncStorage.setItem(REMINDER_KEY, String(next));
+    };
 
     const handleClear = () => {
         Alert.alert(
@@ -39,7 +73,21 @@ export default function Profile() {
                     </Text>
                 </View>
 
-                <Text style={styles.sectionTitle}>Recent Matches</Text>
+                <Text style={styles.sectionTitle}>Settings</Text>
+
+                <View style={styles.settingRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.settingLabel}>Daily Reminder</Text>
+                        <Text style={styles.settingHint}>Get a 7pm nudge to play</Text>
+                    </View>
+                    <Switch
+                        value={reminderOn}
+                        onValueChange={toggleReminder}
+                        trackColor={{ false: colors.border, true: colors.pink }}
+                    />
+                </View>
+
+                <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Recent Matches</Text>
 
                 {matches.length === 0 ? (
                     <View style={styles.empty}>
@@ -49,9 +97,7 @@ export default function Profile() {
                     matches.slice(0, 10).map((m, idx) => (
                         <View key={idx} style={styles.matchRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.matchTitle}>
-                                    {m.p1} vs {m.p2}
-                                </Text>
+                                <Text style={styles.matchTitle}>{m.p1} vs {m.p2}</Text>
                                 <Text style={styles.matchMeta}>
                                     {m.categoryLabel} • {new Date(m.timestamp).toLocaleDateString()}
                                 </Text>
@@ -92,11 +138,16 @@ const styles = StyleSheet.create({
     avatarText: { fontSize: 44 },
     name:       { ...typography.title, marginBottom: spacing.xs },
     tagline:    { ...typography.caption },
-    sectionTitle: {
-        ...typography.heading,
-        fontSize: 18,
-        marginBottom: spacing.md,
+    sectionTitle: { ...typography.heading, fontSize: 18, marginBottom: spacing.md },
+    settingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.card,
+        borderRadius: radii.md,
+        padding: spacing.md,
     },
+    settingLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
+    settingHint:  { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     empty: {
         backgroundColor: colors.pinkLight,
         borderRadius: radii.md,

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../constants/theme';
 import { saveMatch } from '../../services/storage';
+import { notifyMatchComplete } from '../../services/notifications';
 
 export default function Results() {
     const { p1, p2, s1, s2, categoryLabel } = useLocalSearchParams();
@@ -36,6 +37,7 @@ export default function Results() {
             winner: winnerName,
             timestamp: Date.now(),
         });
+        notifyMatchComplete(winnerName);
     }, []);
 
     return (
