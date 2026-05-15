@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { colors, spacing, typography, radii } from '../../constants/theme';
 
 export default function Play() {
@@ -11,7 +12,7 @@ export default function Play() {
 
                 <Pressable
                     style={({ pressed }) => [styles.modeCard, styles.pinkCard, pressed && styles.pressed]}
-                    onPress={() => console.log('Hot-seat tapped — wired in Sprint 2')}
+                    onPress={() => router.push('/game/setup')}
                 >
                     <Text style={styles.modeTitle}>👥 Hot Seat</Text>
                     <Text style={styles.modeDesc}>Two players, one phone, take turns</Text>
